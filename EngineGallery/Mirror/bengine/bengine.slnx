@@ -1,7 +1,0 @@
-<Solution>
-  <Configurations>
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Project Path="bengine/bengine.vcxproj" Id="11154445-2914-43e1-a4fb-e2496e7e2b0b" />
-</Solution>
