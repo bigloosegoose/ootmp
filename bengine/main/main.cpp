@@ -7,6 +7,10 @@
 #include <filesystem>
 #include <algorithm>
 
+#include <thread>
+#include <queue>
+#include <mutex>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -28,14 +32,19 @@
 #include <soloud/soloud.h>
 #include <soloud/soloud_wav.h>
 
+using std::cout, std::endl, std::string, std::vector;
+
 SoLoud::Soloud soloud; //audio engine
 SoLoud::Wav sample;     //one wave file
+
+std::mutex cmdMutex;
+std::queue<string> cmdQueue;
 
 GLFWwindow* window;
 namespace fs = std::filesystem;
 
 constexpr float PI = 3.1415926535f;
-using std::cout, std::endl, std::string, std::vector;
+
 
 //settings
 unsigned int width = 800;

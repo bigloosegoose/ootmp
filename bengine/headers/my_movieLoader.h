@@ -6,8 +6,9 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
+#include <libswscale/swscale.h>
 }
-using std::string;
+using std::string, std::endl;
 
 AVFormatContext* formatContext = nullptr; //header
 
@@ -44,7 +45,7 @@ int readFrames(string videoPath) {
 	//allocate codec context + parameters
 	AVCodecContext* codecContext = avcodec_alloc_context3(codec);
 	if (!codecContext) {
-		std::cerr << "Could not allocate codec conetxt!" << std::endl;
+		std::cerr << "Could not allocate codec context!" << std::endl;
 		avformat_close_input(&formatContext);
 		return -1;
 	}
@@ -77,8 +78,32 @@ int readFrames(string videoPath) {
 				std::cerr << "Error sending packet to decoder!" << std::endl;
 				break;
 			}
+
+			while (response >= 0) {
+				response = avcodec_receive_frame(codecContext, frame);
+				if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
+					break;
+				}
+				else if (response < 0) {
+					std::cerr << "Error receving frame from decoder!" << endl;
+					goto cleanup;
+				}
+			}
+
 		}
+		//after decoding frame
+		frameCounter++;
+		//cout << "Frame " << frameCounter << av_get_picture_type_char(frame->pict_type) << endl;
+	
+		av_packet_unref(packet);
 	}
 
+	cleanup:
+	av_packet_free(&packet);
+	av_frame_free(&frame);
+	avcodec_free_context(&codecContext);
+	avformat_close_input(&formatContext);
+	
 	return 0;
 }
+
