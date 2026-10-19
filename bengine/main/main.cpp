@@ -475,7 +475,7 @@ void prompt() {
 	
 	if (command[0] == "cd") changeDir(fs::directory_entry(command[1]));
 	else if (command[0] == "dir") showFiles();
-	else if (command[0] == "play") readFrame(command[1]);
+	else if (command[0] == "play") readFrames(command[1]);
 	else cout << "\"" << command[0] << "\" is not a valid ootmp command!" << endl;
 }
 	
