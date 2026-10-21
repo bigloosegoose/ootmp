@@ -45,10 +45,17 @@ namespace fs = std::filesystem;
 
 constexpr float PI = 3.1415926535f;
 
+//movie vars
+double playStart = 0.0;
+double framePts = 0.0;
+bool havePending = false;
+
+
 
 //settings
-unsigned int width = 800;
-unsigned int height = 600;
+int width = 800;
+int height = 600;
+bool isFullscreen = false;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -63,23 +70,12 @@ bool cursorEnabled = false;
 
 float quadVertices[] = {
 	// positions	// texCoords
-	-1.0f,  1.0f,	0.0f, 1.0f,
-	-1.0f, -1.0f,	0.0f, 0.0f,
-	 1.0f, -1.0f,	1.0f, 0.0f,
-	-1.0f,  1.0f,	0.0f, 1.0f,
-	 1.0f, -1.0f,	1.0f, 0.0f,
-	 1.0f,  1.0f,	1.0f, 1.0f
-};
-
-
-float points[] = {
-	-0.5f,
-0.5f, 1.0f, 0.0f, 0.0f, // top-left
-0.5f,
-0.5f, 0.0f, 1.0f, 0.0f, // top-right
-0.5f, -0.5f, 0.0f, 0.0f, 1.0f, // bottom-right
--0.5f, -0.5f, 1.0f, 1.0f, 0.0f
-// bottom-left
+	-1.0f,  1.0f,	0.0f, 0.0f,
+	-1.0f, -1.0f,	0.0f, 1.0f,
+	 1.0f, -1.0f,	1.0f, 1.0f,
+	-1.0f,  1.0f,	0.0f, 0.0f,
+	 1.0f, -1.0f,	1.0f, 1.0f,
+	 1.0f,  1.0f,	1.0f, 0.0f
 };
 
 string extensions[] = { ".mp4",".webm",".mov",".avi",".mkv",".wmv",".flv",".f4v",".avchd" };
@@ -151,9 +147,7 @@ int main() {
 
 	//setting up soloud(audio)
 	soloud.init();
-	sample.load("audio\\LOOP1.wav");
-	sample.setLooping(true);
-	sample.setVolume(0.0f);
+	sample.setVolume(1.0f);
 
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -276,8 +270,16 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		//making the cli first
-		
-
+		if (!havePending) {
+			havePending = decodeNextFrame();
+			if (havePending) framePts = frame->best_effort_timestamp * timeBase;
+			else closeMovie();
+		}
+		double clock = hasAudio ? soloud.getStreamTime(audioHandle) : glfwGetTime() - playStart;
+		if (havePending && clock >= framePts) {
+			uploadFrame();
+			havePending = false;
+		}
 
 
 
@@ -287,6 +289,8 @@ int main() {
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, movieTexture);
 		screenShader.setInt("screenTexture", 0);
+		screenShader.setMat4("model", model);
+		screenShader.setBool("hasTexture", true);
 
 		glBindVertexArray(quadVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -297,9 +301,9 @@ int main() {
 		glBindTexture(GL_TEXTURE_2D, 0);
 		glEnable(GL_DEPTH_TEST);
 		
-		//UI
-		uiDefine(io);	//Design
-		uiDraw();		//Render
+		////UI
+		//uiDefine(io);	//Design
+		//uiDraw();		//Render
 
 		//swap
 		glfwSwapBuffers(window);
@@ -365,29 +369,23 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 }
 
 void processInput(GLFWwindow* window) {
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-		camera.ProcessKeyboard(FORWARD, deltaTime);
-	}
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-		camera.ProcessKeyboard(BACKWARD, deltaTime);
-	}
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-		camera.ProcessKeyboard(LEFT, deltaTime);
-	}
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-		camera.ProcessKeyboard(RIGHT, deltaTime);
-	}
-	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-		camera.ProcessKeyboard(UP, deltaTime);
-	}
-	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-		camera.ProcessKeyboard(DOWN, deltaTime);
-	}
-	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-		camera.MovementSpeed = 15.0f;
-	}
-	if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) != GLFW_PRESS) {
-		camera.MovementSpeed = 5.0f;
+	if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS) {
+		if (!isFullscreen) {
+			glfwGetWindowPos(window, &width, &height);
+			glfwGetWindowSize(window, &width, &height);
+
+			GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+			const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+			// 3. Switch to full screen
+			glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+			isFullscreen = true;
+		}
+		else {
+			// 4. Restore to windowed mode (passing NULL for the monitor parameter)
+			glfwSetWindowMonitor(window, NULL, width, height, width, height, 0);
+			isFullscreen = false;
+		}
 	}
 	
 	
@@ -498,7 +496,18 @@ void prompt() {
 	
 	if (command[0] == "cd") changeDir(fs::directory_entry(command[1]));
 	else if (command[0] == "dir") showFiles();
-	else if (command[0] == "play") readFrames(command[1]);
+	else if (command[0] == "play") {
+		if (openMovie(command[1]) == 0) {
+			if (hasAudio) audioHandle = soloud.play(movieAudio);
+			playStart = glfwGetTime();
+			havePending = false;
+		}
+	}
+	else if (command[0] == "help") {
+		cout << "cd {target directory}				 Changes directory" << endl;
+		cout << "dir								 Lists files and folders in the current directory" << endl;
+		cout << "play {file path}					 Plays the video at the specified path"<< endl;
+	}
 	else cout << "\"" << command[0] << "\" is not a valid ootmp command!" << endl;
 }
 	

@@ -2,6 +2,8 @@
 #include <iostream>
 #include <string>
 #include <glad/glad.h>
+#include <soloud/soloud.h>
+#include <soloud/soloud_wav.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -9,8 +11,13 @@ extern "C" {
 #include <libavutil/avutil.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
 }
 using std::string, std::endl;
+
+SoLoud::Wav movieAudio;
+unsigned int audioHandle = 0;
+bool hasAudio = false;
 
 AVFormatContext* formatContext = nullptr;
 AVCodecContext* codecContext = nullptr;
@@ -28,7 +35,10 @@ unsigned int movieTexture;
 bool ended = true;
 
 
+int loadAudio(string path);
+
 int openMovie(string videoPath) {
+	videoStreamIndex = -1;
 	const char* funcVideoPath = videoPath.c_str();
 	if (avformat_open_input(&formatContext, funcVideoPath, nullptr, nullptr) < 0) {
 		std::cerr << "Could not open the file " << funcVideoPath << std::endl;
@@ -40,8 +50,6 @@ int openMovie(string videoPath) {
 		avformat_close_input(&formatContext);
 		return -1;
 	}
-
-	timeBase = av_q2d(formatContext->streams[videoStreamIndex]->time_base);
 
 	const AVCodec* codec = nullptr;
 	for (unsigned int i = 0; i < formatContext->nb_streams; i++) {
@@ -57,6 +65,8 @@ int openMovie(string videoPath) {
 		avformat_close_input(&formatContext);
 		return -1;
 	}
+	timeBase = av_q2d(formatContext->streams[videoStreamIndex]->time_base);
+
 	//allocate codec context + parameters
 	codecContext = avcodec_alloc_context3(codec);
 	if (!codecContext) {
@@ -100,6 +110,7 @@ int openMovie(string videoPath) {
 	rgbFrame = av_frame_alloc();
 	av_image_fill_arrays(rgbFrame->data, rgbFrame->linesize, rgbBuffer, AV_PIX_FMT_RGB24, codecContext->width, codecContext->height, 1);
 
+	loadAudio(videoPath);
 	ended = false;
 	return 0;
 }
@@ -122,4 +133,65 @@ bool decodeNextFrame() {
 
 void uploadFrame() {
 	sws_scale(swsContext, (uint8_t const* const*)frame->data, frame->linesize, 0, codecContext->height, rgbFrame->data, rgbFrame->linesize);
+	glBindTexture(GL_TEXTURE_2D, movieTexture);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, codecContext->width, codecContext->height,
+		GL_RGB, GL_UNSIGNED_BYTE, rgbFrame->data[0]);
+	glBindTexture(GL_TEXTURE_2D, 0);
 	}
+
+void closeMovie() {
+	av_packet_free(&packet);
+	av_frame_free(&frame);
+	avcodec_free_context(&codecContext);
+	avformat_close_input(&formatContext);
+	av_freep(&rgbBuffer);
+	av_frame_free(&rgbFrame);
+	sws_freeContext(swsContext);
+	//ended = true;
+}
+
+int loadAudio(string path) {
+	AVFormatContext* afmt = nullptr;
+	avformat_open_input(&afmt, path.c_str(), nullptr, nullptr);
+	const AVCodec* acodec = nullptr;
+	int aIdx = av_find_best_stream(afmt, AVMEDIA_TYPE_AUDIO, -1, -1, &acodec, 0);
+
+	if (aIdx < 0) {
+		avformat_close_input(&afmt);
+		return -1; 
+	}
+
+	AVCodecContext* acc = avcodec_alloc_context3(acodec);
+	avcodec_parameters_to_context(acc, afmt->streams[aIdx]->codecpar);
+	avcodec_open2(acc, acodec, nullptr);
+
+	SwrContext* swr = nullptr;
+	AVChannelLayout stereo = AV_CHANNEL_LAYOUT_STEREO;
+	swr_alloc_set_opts2(&swr, &stereo, AV_SAMPLE_FMT_FLTP, acc->sample_rate,
+		&acc->ch_layout, acc->sample_fmt, acc->sample_rate, 0, nullptr);
+	swr_init(swr);
+
+	std::vector<float> left, right;
+	AVPacket* ap = av_packet_alloc();
+	AVFrame* af = av_frame_alloc();
+	while (av_read_frame(afmt, ap) >= 0) {
+		if (ap->stream_index == aIdx && avcodec_send_packet(acc, ap) == 0) {
+			while (avcodec_receive_frame(acc, af) == 0) {
+				size_t old = left.size();
+				left.resize(old + af->nb_samples);
+				right.resize(old + af->nb_samples);
+				uint8_t* out[2] = { (uint8_t*)&left[old], (uint8_t*)&right[old] };
+				int n = swr_convert(swr, out, af->nb_samples,
+					(const uint8_t**)af->extended_data, af->nb_samples);
+				if (n < 0) n = 0;
+				left.resize(old + n);
+				right.resize(old + n);
+			}
+		}
+		av_packet_unref(ap);
+	}
+
+	left.insert(left.end(), right.begin(), right.end());
+	movieAudio.loadRawWave(left.data(), left.size() / 2, (float)acc->sample_rate, 2, true);
+	hasAudio = true;
+}
