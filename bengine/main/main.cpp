@@ -225,7 +225,14 @@ int main() {
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+	//***********************************************************************************************
+	//movie Frame Tex
+	glGenTextures(1, &movieTexture);
+	glBindTexture(GL_TEXTURE_2D, movieTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+	glBindTexture(GL_TEXTURE_2D, 0);
 
 	//***********************************************************************************************
 
@@ -240,8 +247,15 @@ int main() {
 
 	//######################################################################################################
 	//render loop
+	cout << "all set!" << endl;
 	glViewport(0, 0, width, height);
 	while (!glfwWindowShouldClose(window)) {
+		while (ended) {
+			prompt();
+			glfwHideWindow(window);
+		}
+
+		glfwShowWindow(window);
 
 		float currentTime = (float)glfwGetTime();
 		deltaTime = currentTime - lastFrame;
@@ -262,26 +276,26 @@ int main() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		//making the cli first
-		prompt();
+		
 
 
 
 
-		//second pass
-		/*glDisable(GL_CULL_FACE);
+		//second pass (not anymore)
 		glDisable(GL_DEPTH_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glBindVertexArray(quadVAO);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texColorBuffer);
 		screenShader.use();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, movieTexture);
 		screenShader.setInt("screenTexture", 0);
-		glDrawArrays(GL_TRIANGLES, 0, 6);*/
+
+		glBindVertexArray(quadVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 
 
 		//unbind stuff 
 		glBindVertexArray(0);
 		glBindTexture(GL_TEXTURE_2D, 0);
+		glEnable(GL_DEPTH_TEST);
 		
 		//UI
 		uiDefine(io);	//Design
