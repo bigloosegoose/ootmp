@@ -56,6 +56,13 @@ bool havePending = false;
 int width = 800;
 int height = 600;
 bool isFullscreen = false;
+int fboWidth = width, fboHeight = height;
+unsigned int texColorBuffer;
+unsigned int RBO;
+
+//video modes (cycle with the O key)
+int viewMode = 0; // 0 = normal, 1 = ascii, 2 = monochrome, 3 = night reading
+const char* viewModeNames[] = { "normal", "ascii", "monochrome", "night reading" };
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -104,6 +111,7 @@ void uiClickCheck();
 void showFiles();
 void prompt();
 void changeDir(fs::directory_entry target);
+void resizeFBO(int w, int h);
 //****************************************************************************************************************************************
 int main() {
 
@@ -192,7 +200,7 @@ int main() {
 	glGenFramebuffers(1, &FBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
-	unsigned int texColorBuffer; 
+
 	glGenTextures(1, &texColorBuffer);
 	glBindTexture(GL_TEXTURE_2D, texColorBuffer);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
@@ -203,14 +211,16 @@ int main() {
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texColorBuffer, 0);
 
 
-	unsigned int RBO;
+
+
 	glGenRenderbuffers(1, &RBO);
 	glBindRenderbuffer(GL_RENDERBUFFER, RBO);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, RBO);
-	
+
 	Shader screenShader(R"(shaders/lab.vert)", R"(shaders/lab.frag)");
+	Shader videoShader(R"(shaders/lab.vert)", R"(shaders/video.frag)");
 	Shader buttonShader(R"(shaders/lab.vert)", R"(shaders/lab.frag)");
 
 	//to be executed last
@@ -239,10 +249,17 @@ int main() {
 	soloud.play(sample);
 	camera.Position = glm::vec3(0.0f, -20.0f, 100.0f);
 
+	MTexture asciiTex(GL_TEXTURE_2D, "textures/8x8.png", true, 1);
+	glBindTexture(GL_TEXTURE_2D, asciiTex.ID);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, 0);
 	//######################################################################################################
 	//render loop
 	cout << "all set!" << endl;
 	glViewport(0, 0, width, height);
+	glDisable(GL_DEPTH_TEST);
 	while (!glfwWindowShouldClose(window)) {
 		while (ended) {
 			prompt();
@@ -260,14 +277,14 @@ int main() {
 
 		//matrices
 		glm::mat4 model = glm::mat4(1.0f);
-		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)width/(float)height, 0.1f, 150.0f);
+		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)width / (float)height, 0.1f, 150.0f);
 		glm::mat4 view = camera.GetViewMatrix();
-		
 
-		//first pass bruh
+
+
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		//making the cli first
 		if (!havePending) {
@@ -281,26 +298,40 @@ int main() {
 			havePending = false;
 		}
 
-
-
-		//second pass (not anymore)
-		glDisable(GL_DEPTH_TEST);
-		screenShader.use();
+		//first pass
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glViewport(0, 0, fboWidth, fboHeight);
+		glClear(GL_COLOR_BUFFER_BIT);
+		videoShader.use();
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, movieTexture);
-		screenShader.setInt("screenTexture", 0);
-		screenShader.setMat4("model", model);
-		screenShader.setBool("hasTexture", true);
-
+		videoShader.setInt("screenTexture", 0);
 		glBindVertexArray(quadVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		//second pass
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
+		screenShader.use();
+		screenShader.setInt("screenTexture", 0);
+		screenShader.setInt("asciiMap", 1);
+		screenShader.setFloat("width", width);
+		screenShader.setFloat("height", height);
+		screenShader.setInt("mode", viewMode);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, asciiTex.ID);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glActiveTexture(GL_TEXTURE0);
 
 
 		//unbind stuff 
 		glBindVertexArray(0);
 		glBindTexture(GL_TEXTURE_2D, 0);
-		glEnable(GL_DEPTH_TEST);
-		
+
+
 		////UI
 		//uiDefine(io);	//Design
 		//uiDraw();		//Render
@@ -311,7 +342,7 @@ int main() {
 
 
 	}
-//######################################################################################################
+	//######################################################################################################
 
 	soloud.deinit();
 
@@ -335,6 +366,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		toggleMouse(window);
 	}
 
+	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
+		viewMode = (viewMode + 1) % (int)(sizeof(viewModeNames) / sizeof(viewModeNames[0]));
+		cout << "video mode: " << viewModeNames[viewMode] << endl;
+	}
+
 
 
 }
@@ -345,27 +381,27 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 
-		float xpos = static_cast<float>(xposIn);
-		float ypos = static_cast<float>(yposIn);
+	float xpos = static_cast<float>(xposIn);
+	float ypos = static_cast<float>(yposIn);
 
-		if (firstMouse) {
-			lastX = xpos;
-			lastY = ypos;
-			firstMouse = false;
-		}
-
-		float xoffset = xpos - lastX;
-		float yoffset = lastY - ypos; //reversed, y goes bottom to top
+	if (firstMouse) {
 		lastX = xpos;
 		lastY = ypos;
+		firstMouse = false;
+	}
 
-		clickPosX = xpos;
-		clickPosY = ypos;
+	float xoffset = xpos - lastX;
+	float yoffset = lastY - ypos; //reversed, y goes bottom to top
+	lastX = xpos;
+	lastY = ypos;
 
-		if (cursorEnabled == false)
-		{
+	clickPosX = xpos;
+	clickPosY = ypos;
+
+	if (cursorEnabled == false)
+	{
 		camera.ProcessMouseMovement(xoffset, yoffset, deltaTime);
-		}
+	}
 }
 
 void processInput(GLFWwindow* window) {
@@ -377,19 +413,16 @@ void processInput(GLFWwindow* window) {
 			GLFWmonitor* monitor = glfwGetPrimaryMonitor();
 			const GLFWvidmode* mode = glfwGetVideoMode(monitor);
 
-			// 3. Switch to full screen
 			glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 			isFullscreen = true;
 		}
-		else {
-			// 4. Restore to windowed mode (passing NULL for the monitor parameter)
 			glfwSetWindowMonitor(window, NULL, width, height, width, height, 0);
 			isFullscreen = false;
 		}
-	}
-	
-	
 }
+
+
+
 
 void framebuffer_size_callback(GLFWwindow* window, int fwidth, int fheight) {
 	glViewport(0, 0, fwidth, fheight);
@@ -408,7 +441,7 @@ void framebuffer_size_callback(GLFWwindow* window, int fwidth, int fheight) {
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-	if (button == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS && cursorEnabled == true) 
+	if (button == GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS && cursorEnabled == true)
 	{
 		mouseClicked = true;
 		//cout << lastX - width/2 << "," <<height/2 - lastY<< endl;
@@ -478,7 +511,7 @@ void prompt() {
 	prompt += ' ';
 	cout << endl;
 
-	
+
 	for (const auto& x : prompt) {
 		if (x == ' ' && !element.empty()) {
 			command.push_back(element);
@@ -489,15 +522,16 @@ void prompt() {
 		}
 	}
 
-	if (command.size() < 2) { 
+	if (command.size() < 2) {
 		command.push_back("");
 		command.push_back("");
 	}
-	
+
 	if (command[0] == "cd") changeDir(fs::directory_entry(command[1]));
 	else if (command[0] == "dir") showFiles();
 	else if (command[0] == "play") {
 		if (openMovie(command[1]) == 0) {
+			resizeFBO(codecContext->width, codecContext->height);
 			if (hasAudio) audioHandle = soloud.play(movieAudio);
 			playStart = glfwGetTime();
 			havePending = false;
@@ -506,11 +540,11 @@ void prompt() {
 	else if (command[0] == "help") {
 		cout << "cd {target directory}				 Changes directory" << endl;
 		cout << "dir								 Lists files and folders in the current directory" << endl;
-		cout << "play {file path}					 Plays the video at the specified path"<< endl;
+		cout << "play {file path}					 Plays the video at the specified path" << endl;
 	}
 	else cout << "\"" << command[0] << "\" is not a valid ootmp command!" << endl;
 }
-	
+
 
 void showFiles() {
 	cout << "[Parent Folder] .." << endl;
@@ -540,4 +574,14 @@ void changeDir(fs::directory_entry target) {
 	}
 	else cout << "directory " << target << " not found!" << endl;
 	cout << endl;
+}
+
+void resizeFBO(int w, int h) {
+	glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindRenderbuffer(GL_RENDERBUFFER, RBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	fboWidth = w; fboHeight = h;
 }

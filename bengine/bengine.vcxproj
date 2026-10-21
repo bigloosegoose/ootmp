@@ -72,6 +72,7 @@
     <None Include="shaders\starInstanceShader.vert" />
     <None Include="shaders\temp.frag" />
     <None Include="shaders\temp.vert" />
+    <None Include="shaders\video.frag" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="headers\camera.h" />
