@@ -11,6 +11,12 @@ The aim for this program was to get an idea of how to use ffmpeg to read video f
 - Ability to read common video files with audio playback
 - Implementation of shaders on the video output (4 shaders currently)
 
+## How to run?
+- Download the latest release zip from [here](https://github.com/bigloosegoose/ootmp/releases/)
+- Unzip it
+- run bengine.exe
+- use the commands below
+
 ## Commands:
 Sorry for this rushed mess, will make it better when I get time!
 | Command | output |
