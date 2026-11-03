@@ -1,6 +1,6 @@
 # ootmp
 
-A movie player, currently CLI and just a proof of concept built on bengine as base.
+One of the movie players, currently CLI and just a proof of concept built on [bengine](https://github.com/bigloosegoose/bengine) as base.
 
 ## Aim
 
@@ -10,6 +10,16 @@ The aim for this program was to get an idea of how to use ffmpeg to read video f
 
 - Ability to read common video files with audio playback
 - Implementation of shaders on the video output (4 shaders currently)
+
+## Commands:
+Sorry for this rushed mess, will make it better when I get time!
+| Command | output |
+| :--- | :--- |
+| help | Lists all the commands|
+| dir | Lists all the files in the current directory|
+| cd {directory to make current} | changes the current directory to the specified directory if it exists|
+| play {video location} | plays the video at the specified location|
+
 
 ## Controls:
 
