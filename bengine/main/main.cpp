@@ -35,7 +35,6 @@
 using std::cout, std::endl, std::string, std::vector;
 
 SoLoud::Soloud soloud; //audio engine
-SoLoud::Wav sample;     //one wave file
 
 std::mutex cmdMutex;
 std::queue<string> cmdQueue;
@@ -50,11 +49,14 @@ double playStart = 0.0;
 double framePts = 0.0;
 bool havePending = false;
 
-
-
 //settings
+int ogxpos = 100;
+int ogypos = 100;
+int ogHeight = 800;
+int ogWidth = 600;
 int width = 800;
 int height = 600;
+bool pressed = false;
 bool isFullscreen = false;
 int fboWidth = width, fboHeight = height;
 unsigned int texColorBuffer;
@@ -155,7 +157,6 @@ int main() {
 
 	//setting up soloud(audio)
 	soloud.init();
-	sample.setVolume(1.0f);
 
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -246,7 +247,6 @@ int main() {
 	glLinkProgram(0);
 
 	//start stuff
-	soloud.play(sample);
 	camera.Position = glm::vec3(0.0f, -20.0f, 100.0f);
 
 	MTexture asciiTex(GL_TEXTURE_2D, "textures/8x8.png", true, 1);
@@ -286,7 +286,6 @@ int main() {
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		//making the cli first
 		if (!havePending) {
 			havePending = decodeNextFrame();
 			if (havePending) framePts = frame->best_effort_timestamp * timeBase;
@@ -405,20 +404,27 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 }
 
 void processInput(GLFWwindow* window) {
-	if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS) {
+	if (glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS and !pressed) {
+		pressed = true;
 		if (!isFullscreen) {
-			glfwGetWindowPos(window, &width, &height);
-			glfwGetWindowSize(window, &width, &height);
-
+			glfwGetWindowPos(window, &ogxpos, &ogypos);
+			glfwGetWindowSize(window, &ogWidth, &ogHeight);
 			GLFWmonitor* monitor = glfwGetPrimaryMonitor();
 			const GLFWvidmode* mode = glfwGetVideoMode(monitor);
 
 			glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+			//cout << "fullscreen" << endl;
 			isFullscreen = true;
 		}
-			glfwSetWindowMonitor(window, NULL, width, height, width, height, 0);
+		else {
+			glfwSetWindowMonitor(window, NULL, ogxpos, ogypos, ogWidth, ogHeight, 0);
+			//cout << "restored" << endl;
 			isFullscreen = false;
 		}
+	}
+	if (glfwGetKey(window, GLFW_KEY_F11) != GLFW_PRESS and pressed) {
+		pressed = !pressed;
+	}
 }
 
 
@@ -572,6 +578,7 @@ void changeDir(fs::directory_entry target) {
 		fs::current_path(currentDir);
 
 	}
+	else if (target == fs::directory_entry("")) { cout << currentDir << endl; }
 	else cout << "directory " << target << " not found!" << endl;
 	cout << endl;
 }

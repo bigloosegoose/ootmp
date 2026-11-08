@@ -192,6 +192,6 @@ int loadAudio(string path) {
 	}
 
 	left.insert(left.end(), right.begin(), right.end());
-	movieAudio.loadRawWave(left.data(), left.size() / 2, (float)acc->sample_rate, 2, true);
+	movieAudio.loadRawWave(left.data(), left.size(), (float)acc->sample_rate, 2, true);
 	hasAudio = true;
 }
