@@ -12,12 +12,14 @@ The aim for this program was to get an idea of how to use ffmpeg to read video f
 - Implementation of shaders on the video output (4 shaders currently)
 
 ## How to run?
+
 - Download the latest release zip from [here](https://github.com/bigloosegoose/ootmp/releases/)
 - Unzip it
 - run bengine.exe
 - use the commands below
 
 ## Commands:
+
 Sorry for this rushed mess, will make it better when I get time!
 | Command | output |
 | :--- | :--- |
@@ -25,16 +27,14 @@ Sorry for this rushed mess, will make it better when I get time!
 | dir | Lists all the files in the current directory|
 | cd {directory to make current} | changes the current directory to the specified directory if it exists|
 | play {video location} | plays the video at the specified location|
-
+| quit | exits the program|
 
 ## Controls:
 
-- Pressing F11 fullscreens(bit buggy)
+- Pressing F11 fullscreens
 - Pressing O cycles through the Shaders
 
 ## Shaders:
-
-I have chosen these shaders for comfortable viewing experience or taking screenshots of a cool frame. The presets are:
 
 - Normal
 
@@ -42,12 +42,12 @@ I have chosen these shaders for comfortable viewing experience or taking screens
 
 - Ascii
 
-![normal preset](<ss/1%20(2).png>)
+![Ascii preset](<ss/1%20(2).png>)
 
 - Monochrome
 
-![normal preset](<ss/1%20(4).png>)
+![Monochrome preset](<ss/1%20(4).png>)
 
 - Night Reader
 
-![normal preset](<ss/1%20(3).png>)
+![Night Reader preset](<ss/1%20(3).png>)

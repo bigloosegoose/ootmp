@@ -48,6 +48,7 @@ constexpr float PI = 3.1415926535f;
 double playStart = 0.0;
 double framePts = 0.0;
 bool havePending = false;
+bool endProgram = false;
 
 //settings
 int ogxpos = 100;
@@ -68,6 +69,8 @@ const char* viewModeNames[] = { "normal", "ascii", "monochrome", "night reading"
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+float mouseStopTime = 0.0f;
+float mouseStartTime = 0.0f;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 
@@ -103,7 +106,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
-void toggleMouse(GLFWwindow* window);
+void toggleMouse(GLFWwindow* window, bool switchTo);
 
 void uiDefine(ImGuiIO io);
 void uiDraw();
@@ -260,10 +263,11 @@ int main() {
 	cout << "all set!" << endl;
 	glViewport(0, 0, width, height);
 	glDisable(GL_DEPTH_TEST);
-	while (!glfwWindowShouldClose(window)) {
+	while (!glfwWindowShouldClose(window) and !endProgram) {
 		while (ended) {
 			prompt();
 			glfwHideWindow(window);
+			if (endProgram) return 0;
 		}
 
 		glfwShowWindow(window);
@@ -271,6 +275,13 @@ int main() {
 		float currentTime = (float)glfwGetTime();
 		deltaTime = currentTime - lastFrame;
 		lastFrame = currentTime;
+
+		mouseStopTime += deltaTime;
+		mouseStartTime += deltaTime;
+		if (mouseStopTime > 3.0f) {
+			mouseStopTime = 0.0f;
+			toggleMouse(window, false); mouseStartTime = 0.0f; cout << "mouse stopped too long" << endl;
+		}
 
 		uiClickCheck();
 		processInput(window);
@@ -331,9 +342,9 @@ int main() {
 		glBindTexture(GL_TEXTURE_2D, 0);
 
 
-		////UI
-		//uiDefine(io);	//Design
-		//uiDraw();		//Render
+		//UI
+		uiDefine(io);	//Design
+		uiDraw();		//Render
 
 		//swap
 		glfwSwapBuffers(window);
@@ -362,7 +373,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 	}
 
 	if (key == GLFW_KEY_LEFT_ALT && action == GLFW_PRESS) {
-		toggleMouse(window);
+		//toggleMouse(window);
 	}
 
 	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
@@ -379,7 +390,12 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
-
+	if (mouseStartTime > 1.0f) {
+		mouseStartTime = 0.0f;
+		cout << "mouse moved too long" << endl;
+		toggleMouse(window, true);
+		mouseStopTime = 0.0f;
+	}
 	float xpos = static_cast<float>(xposIn);
 	float ypos = static_cast<float>(yposIn);
 
@@ -391,6 +407,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 
 	float xoffset = xpos - lastX;
 	float yoffset = lastY - ypos; //reversed, y goes bottom to top
+
 	lastX = xpos;
 	lastY = ypos;
 
@@ -459,15 +476,18 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 	}
 }
 
-void toggleMouse(GLFWwindow* window) {
+void toggleMouse(GLFWwindow* window, bool switchTo) {
+	cursorEnabled = !switchTo;
 	if (cursorEnabled == true) {
 		cursorEnabled = false;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		cout << "mouse off" << endl;
 	}
 	else {
 		cursorEnabled = true;
 		firstMouse = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		cout << "mouse on" << endl;
 	}
 }
 
@@ -544,10 +564,12 @@ void prompt() {
 		}
 	}
 	else if (command[0] == "help") {
-		cout << "cd {target directory}				 Changes directory" << endl;
+		cout << "cd {target directory}				                 Changes directory" << endl;
 		cout << "dir								 Lists files and folders in the current directory" << endl;
-		cout << "play {file path}					 Plays the video at the specified path" << endl;
+		cout << "play {file path}					         Plays the video at the specified path" << endl;
+		cout << "quit								 exits the program" << endl;
 	}
+	else if (command[0] == "quit") endProgram = true;
 	else cout << "\"" << command[0] << "\" is not a valid ootmp command!" << endl;
 }
 
