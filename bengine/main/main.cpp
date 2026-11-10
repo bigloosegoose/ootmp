@@ -238,11 +238,11 @@ int main() {
 	//***********************************************************************************************
 	// Define UI (tired will do later)
 
-	pause_button = std::make_unique<UI>(quadVAO, buttonShader, []() {togglePause;});
+	pause_button = std::make_unique<UI>(quadVAO, buttonShader, []() {togglePause();});
 
 	pause_button->convertPosition(false);
 	//cout << pause_button->width << "," << pause_button->height;
-	pause_button->SetPosition(width/2 - pause_button->width / 2, height/2 - pause_button->height / 2, false);
+	pause_button->SetPosition(0.0f, -0.85f);
 	pause_button->SetDimensions(0.1f, 0.1f);
 	pause_button->SetTexture("textures/btkpause.png");
 	
@@ -279,7 +279,7 @@ int main() {
 			mouseStopTime += deltaTime;
 			mouseStartTime += deltaTime;
 
-			if (mouseStopTime > 3.0f) {
+			if (mouseStopTime > 2.0f) {
 				mouseStopTime = 0.0f;
 				toggleMouse(window, false); 
 				mouseStartTime = 0.0f;
@@ -396,7 +396,7 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 }
 
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
-	if (mouseStartTime > 1.0f) {
+	if (mouseStartTime > 0.2f) {
 		mouseStartTime = 0.0f;
 		toggleMouse(window, true);
 		mouseStopTime = 0.0f;
@@ -509,8 +509,10 @@ void uiDraw() {
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-	for (unsigned int i = 0; i < ui_elements.size(); i++) {
-		ui_elements[i]->DrawButton();
+	if (cursorEnabled) {
+		for (unsigned int i = 0; i < ui_elements.size(); i++) {
+			ui_elements[i]->DrawButton();
+		}
 	}
 }
 

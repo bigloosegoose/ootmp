@@ -34,6 +34,11 @@ Sorry for this rushed mess, will make it better when I get time!
 - Pressing F11 fullscreens
 - Pressing O cycles through the Shaders
 - Pressing Space toggles play/pause
+- Pressing esc closes the video(yea sorry the close button on the window doesn't work)
+
+## UI:
+
+custom UI implementation under work, currently there is just a pause button.
 
 ## Shaders:
 
