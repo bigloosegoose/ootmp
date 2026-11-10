@@ -134,7 +134,7 @@
     <None Include="shaders\lightSourceShader.frag">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="shaders\temp.frag">
+    <None Include="shaders\button.frag">
       <Filter>Shaders</Filter>
     </None>
     <None Include="shaders\temp.vert">
@@ -170,6 +170,9 @@
       <Filter>Shaders</Filter>
     </None>
     <None Include="shaders\video.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shaders\button.vert">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

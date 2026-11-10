@@ -58,6 +58,7 @@
     <None Include="shaders\basicGeometryShader.geo" />
     <None Include="shaders\basicTexture.frag" />
     <None Include="shaders\basicTexture.vert" />
+    <None Include="shaders\button.vert" />
     <None Include="shaders\instanceShader.frag" />
     <None Include="shaders\instanceShader.vert" />
     <None Include="shaders\lab.frag" />
@@ -70,7 +71,7 @@
     <None Include="shaders\skybox.vert" />
     <None Include="shaders\starInstanceShader.frag" />
     <None Include="shaders\starInstanceShader.vert" />
-    <None Include="shaders\temp.frag" />
+    <None Include="shaders\button.frag" />
     <None Include="shaders\temp.vert" />
     <None Include="shaders\video.frag" />
   </ItemGroup>

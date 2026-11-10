@@ -35,6 +35,7 @@
 using std::cout, std::endl, std::string, std::vector;
 
 SoLoud::Soloud soloud; //audio engine
+SoLoud::Wav MovieAudio;
 
 std::mutex cmdMutex;
 std::queue<string> cmdQueue;
@@ -62,10 +63,13 @@ bool isFullscreen = false;
 int fboWidth = width, fboHeight = height;
 unsigned int texColorBuffer;
 unsigned int RBO;
+unsigned int FBO;
 
-//video modes (cycle with the O key)
+//video modes
+bool paused = false;
 int viewMode = 0; // 0 = normal, 1 = ascii, 2 = monochrome, 3 = night reading
 const char* viewModeNames[] = { "normal", "ascii", "monochrome", "night reading" };
+static bool glfwInitialized = false;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -96,7 +100,7 @@ fs::path currentDir = fs::current_path();
 fs::path targetDir = currentDir;
 
 //UI ELEMENTS
-std::unique_ptr<UI> cross_button;
+std::unique_ptr<UI> pause_button;
 
 //functions
 void processInput(GLFWwindow* window);
@@ -117,28 +121,17 @@ void showFiles();
 void prompt();
 void changeDir(fs::directory_entry target);
 void resizeFBO(int w, int h);
+void togglePause();
+int makeWindow();
+int killWindow();
 //****************************************************************************************************************************************
 int main() {
-
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-
-#ifdef __APPLE__
-	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-
-	window = glfwCreateWindow(width, height, "screen", NULL, NULL);
-	if (window == NULL)
-	{
-		std::cout << "Failed to create GLFW window" << std::endl;
-		glfwTerminate();
-		return -1;
-	}
-	glfwMakeContextCurrent(window);
-
+	makeWindow();
 	//important -> load all the function pointers for openGL before calling any of its functions
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 
@@ -146,6 +139,12 @@ int main() {
 		glfwTerminate();
 		return -1;
 	}
+
+#ifdef __APPLE__
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+
+
 	glfwHideWindow(window);
 
 	//setting up imgui
@@ -161,11 +160,6 @@ int main() {
 	//setting up soloud(audio)
 	soloud.init();
 
-	glfwSetKeyCallback(window, key_callback);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	glfwSetCursorPosCallback(window, mouse_callback);
-	glfwSetMouseButtonCallback(window, mouse_button_callback);
-	glfwSetScrollCallback(window, scroll_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_STENCIL_TEST);
@@ -200,7 +194,6 @@ int main() {
 
 	//***********************************************************************************************
 	//frame buffers
-	unsigned int FBO;
 	glGenFramebuffers(1, &FBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
@@ -225,7 +218,7 @@ int main() {
 
 	Shader screenShader(R"(shaders/lab.vert)", R"(shaders/lab.frag)");
 	Shader videoShader(R"(shaders/lab.vert)", R"(shaders/video.frag)");
-	Shader buttonShader(R"(shaders/lab.vert)", R"(shaders/lab.frag)");
+	Shader buttonShader(R"(shaders/button.vert)", R"(shaders/button.frag)");
 
 	//to be executed last
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -242,6 +235,17 @@ int main() {
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
+	//***********************************************************************************************
+	// Define UI (tired will do later)
+
+	pause_button = std::make_unique<UI>(quadVAO, buttonShader, []() {togglePause;});
+
+	pause_button->convertPosition(false);
+	//cout << pause_button->width << "," << pause_button->height;
+	pause_button->SetPosition(width/2 - pause_button->width / 2, height/2 - pause_button->height / 2, false);
+	pause_button->SetDimensions(0.1f, 0.1f);
+	pause_button->SetTexture("textures/btkpause.png");
+	
 	//***********************************************************************************************
 
 	//unbind all the stuff
@@ -263,94 +267,94 @@ int main() {
 	cout << "all set!" << endl;
 	glViewport(0, 0, width, height);
 	glDisable(GL_DEPTH_TEST);
-	while (!glfwWindowShouldClose(window) and !endProgram) {
-		while (ended) {
-			prompt();
-			glfwHideWindow(window);
-			if (endProgram) return 0;
+	while (true) {
+		prompt();
+		if (endProgram) { delete& movieAudio; return 0; }
+		while (!glfwWindowShouldClose(window) or !ended) {
+
+			float currentTime = (float)glfwGetTime();
+			deltaTime = currentTime - lastFrame;
+			lastFrame = currentTime;
+
+			mouseStopTime += deltaTime;
+			mouseStartTime += deltaTime;
+
+			if (mouseStopTime > 3.0f) {
+				mouseStopTime = 0.0f;
+				toggleMouse(window, false); 
+				mouseStartTime = 0.0f;
+			}
+
+			uiClickCheck();
+			processInput(window);
+			if (!paused) {
+				
+
+				//matrices
+				glm::mat4 model = glm::mat4(1.0f);
+				glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)width / (float)height, 0.1f, 150.0f);
+				glm::mat4 view = camera.GetViewMatrix();
+
+
+
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+
+				if (!havePending) {
+					havePending = decodeNextFrame();
+					if (havePending) framePts = frame->best_effort_timestamp * timeBase;
+					else closeMovie();
+				}
+				double clock = hasAudio ? soloud.getStreamTime(audioHandle) : glfwGetTime() - playStart;
+				if (havePending && clock >= framePts) {
+					uploadFrame();
+					havePending = false;
+				}
+
+				//first pass
+				glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+				glViewport(0, 0, fboWidth, fboHeight);
+				glClear(GL_COLOR_BUFFER_BIT);
+				videoShader.use();
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, movieTexture);
+				videoShader.setInt("screenTexture", 0);
+				glBindVertexArray(quadVAO);
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+
+				//second pass
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glViewport(0, 0, width, height);
+				glClear(GL_COLOR_BUFFER_BIT);
+				screenShader.use();
+				screenShader.setInt("screenTexture", 0);
+				screenShader.setInt("asciiMap", 1);
+				screenShader.setFloat("width", width);
+				screenShader.setFloat("height", height);
+				screenShader.setInt("mode", viewMode);
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, texColorBuffer);
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, asciiTex.ID);
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				glActiveTexture(GL_TEXTURE0);
+
+
+				//unbind stuff 
+				glBindVertexArray(0);
+				glBindTexture(GL_TEXTURE_2D, 0);
+			}
+			//UI
+			uiDefine(io);	//Design
+			uiDraw();		//Render
+
+			//swap
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+
+		
 		}
-
-		glfwShowWindow(window);
-
-		float currentTime = (float)glfwGetTime();
-		deltaTime = currentTime - lastFrame;
-		lastFrame = currentTime;
-
-		mouseStopTime += deltaTime;
-		mouseStartTime += deltaTime;
-		if (mouseStopTime > 3.0f) {
-			mouseStopTime = 0.0f;
-			toggleMouse(window, false); mouseStartTime = 0.0f; cout << "mouse stopped too long" << endl;
-		}
-
-		uiClickCheck();
-		processInput(window);
-
-		//matrices
-		glm::mat4 model = glm::mat4(1.0f);
-		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)width / (float)height, 0.1f, 150.0f);
-		glm::mat4 view = camera.GetViewMatrix();
-
-
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		if (!havePending) {
-			havePending = decodeNextFrame();
-			if (havePending) framePts = frame->best_effort_timestamp * timeBase;
-			else closeMovie();
-		}
-		double clock = hasAudio ? soloud.getStreamTime(audioHandle) : glfwGetTime() - playStart;
-		if (havePending && clock >= framePts) {
-			uploadFrame();
-			havePending = false;
-		}
-
-		//first pass
-		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-		glViewport(0, 0, fboWidth, fboHeight);
-		glClear(GL_COLOR_BUFFER_BIT);
-		videoShader.use();
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, movieTexture);
-		videoShader.setInt("screenTexture", 0);
-		glBindVertexArray(quadVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-
-		//second pass
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, width, height);
-		glClear(GL_COLOR_BUFFER_BIT);
-		screenShader.use();
-		screenShader.setInt("screenTexture", 0);
-		screenShader.setInt("asciiMap", 1);
-		screenShader.setFloat("width", width);
-		screenShader.setFloat("height", height);
-		screenShader.setInt("mode", viewMode);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texColorBuffer);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, asciiTex.ID);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		glActiveTexture(GL_TEXTURE0);
-
-
-		//unbind stuff 
-		glBindVertexArray(0);
-		glBindTexture(GL_TEXTURE_2D, 0);
-
-
-		//UI
-		uiDefine(io);	//Design
-		uiDraw();		//Render
-
-		//swap
-		glfwSwapBuffers(window);
-		glfwPollEvents();
-
-
 	}
 	//######################################################################################################
 
@@ -370,10 +374,12 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, true);
+		killWindow();
 	}
 
-	if (key == GLFW_KEY_LEFT_ALT && action == GLFW_PRESS) {
-		//toggleMouse(window);
+	if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
+		togglePause();
+		cout << "space pressed" << endl;
 	}
 
 	if (key == GLFW_KEY_O && action == GLFW_PRESS) {
@@ -392,7 +398,6 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 	if (mouseStartTime > 1.0f) {
 		mouseStartTime = 0.0f;
-		cout << "mouse moved too long" << endl;
 		toggleMouse(window, true);
 		mouseStopTime = 0.0f;
 	}
@@ -481,13 +486,11 @@ void toggleMouse(GLFWwindow* window, bool switchTo) {
 	if (cursorEnabled == true) {
 		cursorEnabled = false;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		cout << "mouse off" << endl;
 	}
 	else {
 		cursorEnabled = true;
 		firstMouse = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		cout << "mouse on" << endl;
 	}
 }
 
@@ -496,9 +499,9 @@ void uiDefine(ImGuiIO io) {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 	{
-		ImGui::Begin("Pending Panel");
-		ImGui::Text("Application Average: %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-		ImGui::End();
+		//ImGui::Begin("Pending Panel");
+		//ImGui::Text("Application Average: %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+		//ImGui::End();
 	}
 }
 
@@ -537,6 +540,7 @@ void prompt() {
 	prompt += ' ';
 	cout << endl;
 
+	glfwHideWindow(window);
 
 	for (const auto& x : prompt) {
 		if (x == ' ' && !element.empty()) {
@@ -557,8 +561,15 @@ void prompt() {
 	else if (command[0] == "dir") showFiles();
 	else if (command[0] == "play") {
 		if (openMovie(command[1]) == 0) {
+			glfwSetWindowSize(window, codecContext->width, codecContext->height);
+			glfwShowWindow(window);
+			glfwMakeContextCurrent(window);
+
 			resizeFBO(codecContext->width, codecContext->height);
-			if (hasAudio) audioHandle = soloud.play(movieAudio);
+			if (hasAudio) {
+				audioHandle = soloud.play(movieAudio);
+				MovieAudio = movieAudio;
+			}
 			playStart = glfwGetTime();
 			havePending = false;
 		}
@@ -613,4 +624,47 @@ void resizeFBO(int w, int h) {
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
 	glBindRenderbuffer(GL_RENDERBUFFER, 0);
 	fboWidth = w; fboHeight = h;
+}
+
+void togglePause() {
+	if (paused) {
+		paused = false;
+		soloud.setPause(audioHandle, 0);
+	}
+	else {
+		paused = true;
+		soloud.setPause(audioHandle, 1);
+	}
+}
+
+int makeWindow() {
+	if (!glfwInitialized) {
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+		window = glfwCreateWindow(width, height, "screen", NULL, NULL);
+		if (window == NULL) {
+			std::cout << "Failed to create GLFW window" << std::endl;
+			return -1;
+		}
+		glfwMakeContextCurrent(window);
+
+		glfwSetKeyCallback(window, key_callback);
+		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+		glfwSetCursorPosCallback(window, mouse_callback);
+		glfwSetMouseButtonCallback(window, mouse_button_callback);
+		glfwSetScrollCallback(window, scroll_callback);
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+		glfwInitialized = true;
+	}
+	return 0;
+}
+
+int killWindow() {
+	glfwHideWindow(window);
+	soloud.setPause(audioHandle, 1); //temp, ideally deinit
+	ended = true;
+	return 0;
 }

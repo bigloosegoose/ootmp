@@ -33,6 +33,7 @@ Sorry for this rushed mess, will make it better when I get time!
 
 - Pressing F11 fullscreens
 - Pressing O cycles through the Shaders
+- Pressing Space toggles play/pause
 
 ## Shaders:
 

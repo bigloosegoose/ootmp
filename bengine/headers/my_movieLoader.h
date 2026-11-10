@@ -29,17 +29,27 @@ SwsContext* swsContext = nullptr;
 int videoStreamIndex = -1;
 double timeBase = 0.0;
 
-
-
 unsigned int movieTexture;
 bool ended = true;
 
-
+void closeMovie();
 int loadAudio(string path);
 
 int openMovie(string videoPath) {
+	if (formatContext) closeMovie(); //force reset pointers
+
 	videoStreamIndex = -1;
 	const char* funcVideoPath = videoPath.c_str();
+
+	formatContext = avformat_alloc_context();
+
+	if (!formatContext) {
+		std::cerr << "could not allocate context" << endl;
+		avformat_free_context(formatContext);
+		formatContext = nullptr;
+		return -1;
+	}
+
 	if (avformat_open_input(&formatContext, funcVideoPath, nullptr, nullptr) < 0) {
 		std::cerr << "Could not open the file " << funcVideoPath << std::endl;
 		return -1;
@@ -147,7 +157,16 @@ void closeMovie() {
 	av_freep(&rgbBuffer);
 	av_frame_free(&rgbFrame);
 	sws_freeContext(swsContext);
-	//ended = true;
+
+	packet = nullptr;
+	frame = nullptr;
+	codecContext = nullptr;
+	formatContext = nullptr;
+	rgbBuffer = nullptr;
+	rgbFrame = nullptr;
+	swsContext = nullptr;
+	videoStreamIndex = -1;
+	ended = true;
 }
 
 int loadAudio(string path) {
